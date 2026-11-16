@@ -76,7 +76,7 @@ jobs:
               sys.exit(0)
           with zipfile.ZipFile(target) as z:
               names = z.namelist()
-              dex = [n for n in names if re.fullmatch(r"classes(\\d+)?\\.dex", n)]
+              dex = [n for n in names if re.fullmatch(r"classes(\d+)?\.dex", n)]
               Path("target-inspection/STATUS.txt").write_text(
                   "APK downloaded and validated as ZIP.\n"
                   f"Entries: {len(names)}\nDEX files: {', '.join(dex)}\n"
