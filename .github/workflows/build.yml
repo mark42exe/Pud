@@ -31,11 +31,17 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp
           echo "/tmp/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
 
-      - name: Build
+      - name: Generate API dump
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-        run: gradle apiDump build --stacktrace
+        run: gradle apiDump --stacktrace
+
+      - name: Build and verify API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: gradle build --stacktrace
 
       - name: Upload build outputs
         if: always()
