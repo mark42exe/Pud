@@ -1,0 +1,48 @@
+name: Build ReVanced patch project
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Gradle
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION=8.14.3
+          curl -fsSLo /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: gradle build --stacktrace
+
+      - name: Upload build outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revanced-patch-build
+          path: |
+            patches/build/libs/**
+            patches/build/outputs/**
+          if-no-files-found: warn
