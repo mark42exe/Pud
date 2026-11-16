@@ -43,6 +43,56 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
         run: gradle build --stacktrace
 
+      - name: Inspect YouTube 20.40.45 target APK (best effort)
+        id: inspect_apk
+        shell: bash
+        run: |
+          set -u
+          mkdir -p target-inspection
+          python3 - <<'PY'
+          import requests, re, sys, zipfile
+          from pathlib import Path
+          file_id = "18nJo6MJelU_f-KPx83qo3AavVHDkO5ZD"
+          session = requests.Session()
+          url = f"https://drive.google.com/uc?export=download&id={file_id}"
+          response = session.get(url, stream=True, timeout=90)
+          token = next((v for k, v in response.cookies.items() if k.startswith("download_warning")), None)
+          if token:
+              response.close()
+              response = session.get(url + "&confirm=" + token, stream=True, timeout=90)
+          target = Path("target-inspection/youtube-20.40.45.apk")
+          with target.open("wb") as out:
+              for chunk in response.iter_content(1024 * 1024):
+                  if chunk:
+                      out.write(chunk)
+          response.close()
+          if not zipfile.is_zipfile(target):
+              target.unlink(missing_ok=True)
+              Path("target-inspection/STATUS.txt").write_text(
+                  "APK download was not accessible as a public Google Drive file. "
+                  "No APK analysis was performed. Check the Drive sharing permission.\n"
+              )
+              print("APK unavailable; continuing without target inspection.")
+              sys.exit(0)
+          with zipfile.ZipFile(target) as z:
+              names = z.namelist()
+              dex = [n for n in names if re.fullmatch(r"classes(\\d+)?\\.dex", n)]
+              Path("target-inspection/STATUS.txt").write_text(
+                  "APK downloaded and validated as ZIP.\n"
+                  f"Entries: {len(names)}\nDEX files: {', '.join(dex)}\n"
+              )
+          print("Target APK downloaded and validated.")
+          PY
+          if [ -f target-inspection/youtube-20.40.45.apk ]; then
+            curl -fsSL https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -o /tmp/apktool
+            curl -fsSL https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.11.1.jar -o /tmp/apktool.jar
+            chmod +x /tmp/apktool
+            java -jar /tmp/apktool.jar d -f target-inspection/youtube-20.40.45.apk -o target-inspection/decoded
+            find target-inspection/decoded -maxdepth 3 -type f | head -200 > target-inspection/decoded-file-list.txt
+            grep -RIlE 'PivotBar|bottomui|navigation_bar|navigationBar' target-inspection/decoded/smali* target-inspection/decoded/res 2>/dev/null | head -300 > target-inspection/navigation-candidates.txt || true
+            rm -rf target-inspection/decoded
+          fi
+
       - name: Upload build outputs
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,4 +101,5 @@ jobs:
           path: |
             patches/build/libs/**
             patches/build/outputs/**
+            target-inspection/**
           if-no-files-found: warn
